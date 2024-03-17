@@ -1,0 +1,18 @@
+.lorem{
+    background-color: rgb(52, 121, 121);
+    color: aliceblue;
+    border-radius: 8px;
+    padding: 10px 10px;
+    margin-top: 50px;
+    border: 1px solid red;
+}
+
+a{
+    text-decoration: none;
+}
+
+body{
+    background-color: darkgrey;
+    font-family: Calibri;
+    font-size: 20px;
+}
