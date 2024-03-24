@@ -6,6 +6,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <string.h>
+#include <WebServer.h> 
 
 #define GMT_OFFSET 1  //France : GMT+1
 #define ASCII_OFFSET 0x30 //link ascii digits to integer digits
@@ -14,14 +15,11 @@
 #define pinSwitch3 16
 #define pinSwitch4 17
 #define pinSwitch5 21
-int stateSwitch1 = 0;
-int stateSwitch2 = 0;
-int stateSwitch3 = 0;
-int stateSwitch4 = 0;
-int stateSwitch5 = 0;
+int stateSwitchArray[5] = {0, 0, 0, 0, 0};
+int previousStateSwitchArray[5];
 String formattedTime; //GMT time in string format
-uint8_t integerTime[3]; //hour, minute, second integer array
-enum time {hour, minute, second}; //names previous array cells
+uint8_t integerTime[3]; 
+enum time {hour, minute, second}; 
 
 const char *SSID = "Redmidedridri"; //Device name
 const char *PWD = "dridrilefour"; //Wifi password
@@ -98,16 +96,13 @@ void getTime(uint8_t *intTime){
   formattedTime = timeClient.getFormattedTime();  //return GMT time in string format
   char arrayTime[formattedTime.length()+1]; 
   strcpy(arrayTime, formattedTime.c_str()); //convert string formated time to a char array
-  /*fill in an integer array with time from previous char array*/
   integerTime[hour] = (arrayTime[0]-ASCII_OFFSET)*10 + arrayTime[1]-ASCII_OFFSET + GMT_OFFSET;
   integerTime[minute] = (arrayTime[3]-ASCII_OFFSET)*10 + arrayTime[4]-ASCII_OFFSET;
   integerTime[second] = (arrayTime[6]-ASCII_OFFSET)*10 + arrayTime[7]-ASCII_OFFSET;
 }
 
-/*Definition of 4 deadlines activating the system*/
 #define NB_OF_DL 4
-
-const uint8_t deadLines[NB_OF_DL][3] = {
+int deadLines[NB_OF_DL][3] = {
   {9, 30, 0},
   {14, 0, 0},
   {18, 30, 0},
@@ -116,6 +111,22 @@ const uint8_t deadLines[NB_OF_DL][3] = {
 
 int stateTime = 0;
 int stateSwitch = 0;
+bool isActivated = 0;
+
+void previousState(){
+  for(int i = 0; i <= 4; i++){
+    previousStateSwitchArray[i] = stateSwitchArray[i];
+  }
+}
+
+bool isActivatedReturn(){
+  for(int i = 0; i <= 4; i++){
+    if(previousStateSwitchArray[i] != stateSwitchArray[i]){
+      return true;
+    }
+  }
+  return false;
+}
 
 int stateTimeReturn(){
   for(int i = 0; i <= NB_OF_DL ; i++){
@@ -135,22 +146,22 @@ int stateTimeReturn(){
 }
 
 int stateSwitchReturn(){
-  if(stateSwitch1 == LOW && stateSwitch2 == LOW && stateSwitch3 == LOW  && stateSwitch4 == LOW && stateSwitch5 == LOW){
+  if(stateSwitchArray[0] == LOW && stateSwitchArray[1] == LOW && stateSwitchArray[2] == LOW  && stateSwitchArray[3] == LOW && stateSwitchArray[4] == LOW){
     return 0;
   }
-  else if(stateSwitch1 == HIGH && stateSwitch2 == LOW && stateSwitch3 == LOW  && stateSwitch4 == LOW && stateSwitch5 == LOW){
+  else if(stateSwitchArray[0] == HIGH && stateSwitchArray[1] == LOW && stateSwitchArray[2] == LOW  && stateSwitchArray[3] == LOW && stateSwitchArray[4] == LOW){
     return 1;
   }
-  else if(stateSwitch1 == HIGH && stateSwitch2 == HIGH && stateSwitch3 == LOW  && stateSwitch4 == LOW && stateSwitch5 == LOW){
+  else if(stateSwitchArray[0] == HIGH && stateSwitchArray[1] == HIGH && stateSwitchArray[2] == LOW  && stateSwitchArray[3] == LOW && stateSwitchArray[4] == LOW){
     return 2;
   }
-  else if(stateSwitch1 == HIGH && stateSwitch2 == HIGH && stateSwitch3 == HIGH  && stateSwitch4 == LOW && stateSwitch5 == LOW){
+  else if(stateSwitchArray[0] == HIGH && stateSwitchArray[1] == HIGH && stateSwitchArray[2] == HIGH  && stateSwitchArray[3] == LOW && stateSwitchArray[4] == LOW){
     return 3;
   }
-  else if(stateSwitch1 == HIGH && stateSwitch2 == HIGH && stateSwitch3 == HIGH  && stateSwitch4 == HIGH && stateSwitch5 == LOW){
+  else if(stateSwitchArray[0] == HIGH && stateSwitchArray[1] == HIGH && stateSwitchArray[2] == HIGH  && stateSwitchArray[3] == HIGH && stateSwitchArray[4] == LOW){
     return 4;
   }
-  else if(stateSwitch1 == HIGH && stateSwitch2 == HIGH && stateSwitch3 == HIGH  && stateSwitch4 == HIGH && stateSwitch5 == HIGH){
+  else if(stateSwitchArray[0] == HIGH && stateSwitchArray[1] == HIGH && stateSwitchArray[2] == HIGH  && stateSwitchArray[3] == HIGH && stateSwitchArray[4] == HIGH){
     return 5;
   }
   else{
@@ -158,19 +169,236 @@ int stateSwitchReturn(){
   }
 }
 
+/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Wifi server ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+WebServer myServer(80);
+
+struct User {
+    const char *username;
+    const char *password;
+};
+
+User users[] = {
+    {"admin", "jesuisingenieurinformaticien"},
+    {"moi", "cestmoi"},
+    {"uncollegue", "cestuncollegue"}
+};
+
+bool authentification() {
+    for (int i = 0; i < sizeof(users) / sizeof(users[0]); i++) {
+        if (myServer.authenticate(users[i].username, users[i].password))
+            return true;
+    }
+    return false;
+}
+
+int stringToInt(String input){
+  char inputChar[input.length()+1];
+  strcpy(inputChar, input.c_str());
+  switch(input.length()){
+    case 0 :
+      return 99;
+    break;
+    case 1 : 
+      return (inputChar[0]-0x30);
+    case 2 :
+      return (inputChar[0]-0x30)*10 + inputChar[1]-0x30;
+    default :
+      return 15;
+    break;
+  }
+}
+
+void implentHTML(){
+
+  if (!authentification())
+      return myServer.requestAuthentication();
+  String page = "<!DOCTYPE html>";
+  page += "";
+  page += "";
+  page += "";
+  page += "";
+  page += "<html lang='fr'>";
+  page += "<head>";
+  page += "    <meta charset='UTF-8'>";
+  page += "    <meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+  page += "    <title>Horaires distribution</title>";
+  page += "    <link rel='icon' href='../assets/Snapchat-501841984.jpg'>";
+  page += "    <link rel='preconnect' href='https://fonts.googleapis.com'>";
+  page += "    <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>";
+  page += "    <link href='https://fonts.googleapis.com/css2?family=Bevan:ital@0;1&family=Caprasimo&display=swap' rel='stylesheet'>";
+  page += "    <style>";
+  page += "        body{";
+  page += "            font-family: Calibri;";
+  page += "            font-size: 15px;";
+  page += "            text-align: center;";
+  page += "            margin: 0;";
+  page += "        }";
+  page += "        * {";
+  page += "            transition: all ease 0.2s;";
+  page += "        }";
+  page += "        h1,h2 {";
+  page += "            font-family: 'Bevan', serif;";
+  page += "        }";
+  page += "        h3 {";
+  page += "            font-family: Calibri;";
+  page += "        }";
+  page += "        .title-wrapper {";
+  page += "            background-color: aquamarine;";
+  page += "            padding: 2em;";
+  page += "        }";
+  page += "        .times-wrapper {";
+  page += "            margin: .8em 1em;";
+  page += "            display: flex;";
+  page += "            flex-direction: row;";
+  page += "            gap: .8em;";
+  page += "            flex-wrap: wrap;";
+  page += "        }";
+  page += "        .times-wrapper > form {";
+  page += "            padding: .8em .2em;";
+  page += "            flex-grow: 1;";
+  page += "            min-width: 14em;";
+  page += "            font-size: 1.1rem;";
+  page += "            border-radius: .8em;";
+  page += "            border: #333 solid 1px;";
+  page += "        }";
+  page += "        .times-wrapper > form > input:not(.submit-button) {";
+  page += "            margin-top: 1em;";
+  page += "            width: 60%;";
+  page += "        }";
+  page += "        .submit-button {";
+  page += "            border: none;";
+  page += "            border-radius: .7em;";
+  page += "            background-color: #69a9f3;";
+  page += "            padding: 1em 1.8em;";
+  page += "            margin-top: 1.8em;";
+  page += "        }";
+  page += "        .submit-button:hover {";
+  page += "            background-color: #c1ddfe;";
+  page += "        }";
+  page += "        .submit-button:focus {";
+  page += "            outline: black solid 2px;";
+  page += "        }";
+  page += "        p{";
+  page += "            margin-top: 1.8em; ";
+  page += "        }";
+  page += "    </style>";
+  page += "</head>";
+  page += "<body>";
+  page += "    <div class='title-wrapper'>";
+  page += "        <h1>Horaires de distribution</h1>";
+  page += "    </div>";
+  page += "    <div class='times-wrapper'>";
+  page += "        <form method='get' action='/submit1'>";
+  page += "             <h3>Premier horaire de distribution</h3>";
+  page += "             <label for='intnumber' >Heure :&nbsp;&nbsp;</label>";
+  page += "             <input type='number' id='input1Hour' name='input1Hour' placeholder='1ère heure' min='0' max='23'><br>";
+  page += "             <label for='intnumber' >Minute :</label>";
+  page += "             <input type='number' id='input1Minute' name='input1Minute' placeholder='1ère minute' min='0' max='59'><br>";
+  page += "             <input type='submit' value='Envoyer' class='submit-button' >";
+  page += "             <p>Heure actuelle : "; page += deadLines[0][hour]; page += "h"; page += deadLines[0][minute]; page += "min" "</p>";
+  page += "        </form>";
+  page += "        <form method='get' action='/submit2'>";
+  page += "             <h3>Second horaire de distribution</h3>";
+  page += "             <label for='intnumber' >Heure :&nbsp;&nbsp;</label>";
+  page += "             <input type='number' id='input2Hour' name='input2Hour' placeholder='2ème heure' min='0' max='23'><br>";
+  page += "             <label for='intnumber' >Minute :</label>";
+  page += "             <input type='number' id='input2Minute' name='input2Minute' placeholder='2ème minute' min='0' max='59'><br>";
+  page += "             <input type='submit' value='Envoyer' class='submit-button' >";
+  page += "             <p>Heure actuelle : "; page += deadLines[1][hour]; page += "h"; page += deadLines[1][minute]; page += "min" "</p>";
+  page += "        </form>";
+  page += "        <form method='get' action='/submit3'>";
+  page += "             <h3>Troisième horaire de distribution</h3>";
+  page += "             <label for='intnumber' >Heure :&nbsp;&nbsp;</label>";
+  page += "             <input type='number' id='input3Hour' name='input3Hour' placeholder='3ème heure' min='0' max='23'><br>";
+  page += "             <label for='intnumber' >Minute :</label>";
+  page += "             <input type='number' id='inputMinute' name='input3Minute' placeholder='3ème minute' min='0' max='59'><br>";
+  page += "             <input type='submit' value='Envoyer' class='submit-button' >";
+  page += "             <p>Heure actuelle : "; page += deadLines[2][hour]; page += "h"; page += deadLines[2][minute]; page += "min" "</p>";
+  page += "        </form>";
+  page += "        <form method='get' action='/submit4'>";
+  page += "             <h3>Quatrième horaire de distribution</h3>";
+  page += "             <label for='intnumber' >Heure :&nbsp;&nbsp;</label>";
+  page += "             <input type='number' id='input4Hour' name='input4Hour' placeholder='4ème heure' min='0' max='23'><br>";
+  page += "             <label for='intnumber' >Minute :</label>";
+  page += "             <input type='number' id='input4Minute' name='input4Minute' placeholder='4ème minute' min='0' max='59'><br>";
+  page += "             <input type='submit' value='Envoyer' class='submit-button' >";
+  page += "             <p>Heure actuelle : "; page += deadLines[3][hour]; page += "h"; page += deadLines[3][minute]; page += "min" "</p>";
+  page += "         </form>";
+  page += "        </div>";
+  page += "    </body>";
+  page += "</html>";
+ 
+  myServer.setContentLength(page.length()); 
+  myServer.send(200, "text/html", page);
+}
+
+void notFound(){
+  myServer.send(404, "text/plain", "404 : Not found !");
+}
+
+void valuesReading(String arg, int line, int column){
+  String inputString = myServer.arg(arg);
+  Serial.print("Numéro entrant: ");
+  Serial.println(inputString);
+  int inputNumber = stringToInt(inputString);
+  if(column == hour){
+    if(inputNumber == 99){
+    }
+    else{
+      deadLines[line][column] = inputNumber;
+    } 
+  }
+  else {
+     if(inputNumber == 99){
+    }
+    else{
+      deadLines[line][column] = inputNumber;
+    }
+    
+  }
+}
+
+void changing1Deadline(){
+  valuesReading("input1Hour", 0, hour);
+  valuesReading("input1Minute", 0, minute);
+  myServer.sendHeader("Location", "/");
+  myServer.send(303);
+}
+
+void changing2Deadline(){
+  valuesReading("input2Hour", 1, hour);
+  valuesReading("input2Minute", 1, minute);
+  myServer.sendHeader("Location", "/");
+  myServer.send(303);
+}
+
+void changing3Deadline(){
+  valuesReading("input3Hour", 2, hour);
+  valuesReading("input3Minute", 2, minute);
+  myServer.sendHeader("Location", "/");
+  myServer.send(303);
+}
+
+void changing4Deadline(){
+  valuesReading("input4Hour", 3, hour);
+  valuesReading("input4Minute", 3, minute);
+  myServer.sendHeader("Location", "/");
+  myServer.send(303);
+}
+
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Motion (l293d) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-#define INPUT1 26 //connected to l293 pin 2 
-#define INPUT2 17 //connected to l293 pin 7
-#define ENABLE 13 //connected to l293 pin 1
+#define INPUT1 19
+#define INPUT2 23
+#define ENABLE 18
 
 
-enum direction {closingDirection, openingDirection, stop}; //links 0,1,2 to different directions
+enum direction {closingDirection, openingDirection, stop}; 
 bool action = false;
 bool isRunning = false;
 int dutyCycle = 200;
 
-void motorMotion(int direction){
+void setDirection(int direction){
   switch(direction){
     case closingDirection :
       digitalWrite(INPUT1, 0);
@@ -194,19 +422,24 @@ void motorMotion(int direction){
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Execution ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 void setup(){
   Serial.begin(115200);
-
-  /*Wifi and NTP client setup*/
   connectToWiFi();
   timeClient.begin();
   delay(1000);
 
-  /*timer setup*/
+  myServer.on("/", implentHTML);  
+  myServer.onNotFound(notFound);
+  myServer.on("/submit1", HTTP_GET, changing1Deadline);
+  myServer.on("/submit2", HTTP_GET, changing2Deadline);
+  myServer.on("/submit3", HTTP_GET, changing3Deadline);
+  myServer.on("/submit4", HTTP_GET, changing4Deadline);
+  myServer.begin();
+  Serial.println("Serveur actif !");
+
   timer = timerBegin(3, PRESCALER, true); //timer 3, prescaler : 8000, count up
   timerAttachInterrupt(timer, &Timer_ISR, true); //pointer on timer object, pointer on our interrupt function, append on rising edge (timer overflow in our case)
   timerAlarmWrite(timer, nbOfTicks, true); //pointer on timer object, overflow value on the timer, autoreload
   timerAlarmEnable(timer);
 
-  /*Pinout setup*/
   pinMode(INPUT1, OUTPUT);
   pinMode(INPUT2, OUTPUT);
   pinMode(ENABLE, OUTPUT);
@@ -219,14 +452,16 @@ void setup(){
 
 void loop(){
   Serial.println("bonjour");  
-  int stateSwitch1 = digitalRead(pinSwitch1);
-  int stateSwitch2 = digitalRead(pinSwitch2);  
-  int stateSwitch3 = digitalRead(pinSwitch3);  
-  int stateSwitch4 = digitalRead(pinSwitch4);  
-  int stateSwitch5 = digitalRead(pinSwitch5);    
+  myServer.handleClient();
+  previousState();
+  stateSwitchArray[0] = digitalRead(pinSwitch1);
+  stateSwitchArray[1] = digitalRead(pinSwitch2);  
+  stateSwitchArray[2] = digitalRead(pinSwitch3);  
+  stateSwitchArray[3] = digitalRead(pinSwitch4);  
+  stateSwitchArray[4] = digitalRead(pinSwitch5);   
   delay(1000);
   if (WiFi.status() != WL_CONNECTED) { 
-    Serial.println("WiFi connection lost. Reconnecting...");
+    Serial.println("Connexion wifi perdue. Reconnexion...");
     connectToWiFi();
   }
   else if(timeCheck){ //execute only if the device is connected to wifi
@@ -242,49 +477,63 @@ void loop(){
     Serial.println();
     stateTime = stateTimeReturn();
     Serial.println(stateTime);
-    int stateSwitch = stateSwitchReturn();
+    stateSwitch = stateSwitchReturn();
     Serial.println(stateSwitch);
+    isActivated = isActivatedReturn();
+    Serial.println(isActivated);
+  if(isActivatedReturn() == 1){
+    setDirection(stop);
+    Serial.println("stop");
+  }
   }
   if(stateTime == 0 && stateSwitch != 0){
-    motorMotion(closingDirection);
+    setDirection(closingDirection);
+    analogWrite(ENABLE, dutyCycle);
+    Serial.println("closing");
   }
   else if(stateTime == 1 && stateSwitch != 2){
     if(stateSwitch > 2){
-      motorMotion(closingDirection);
+      setDirection(closingDirection);
+      analogWrite(ENABLE, dutyCycle);
+      Serial.println("closing");
     }
     if(stateSwitch < 2){
-      motorMotion(openingDirection);
-    }
-    else{
-      motorMotion(stop);
+      setDirection(openingDirection);
+      analogWrite(ENABLE, dutyCycle);
+      Serial.println("opening");
     }
   }
   else if(stateTime == 2 && stateSwitch != 3){
     if(stateSwitch > 3){
-      motorMotion(closingDirection);
+      setDirection(closingDirection);
+      analogWrite(ENABLE, dutyCycle);
+      Serial.println("closing");
     }
     if(stateSwitch < 3){
-      motorMotion(openingDirection);
-    }
-    else{
-      motorMotion(stop);
+      setDirection(openingDirection);
+      analogWrite(ENABLE, dutyCycle);
+      Serial.println("opening");
     }
   }
   else if(stateTime == 3 && stateSwitch != 4){
     if(stateSwitch > 4){
-      motorMotion(closingDirection);
+      setDirection(closingDirection);
+      analogWrite(ENABLE, dutyCycle);
+      Serial.println("closing");
     }
     if(stateSwitch < 4){
-      motorMotion(openingDirection);
-    }
-    else{
-      motorMotion(stop);
+      setDirection(openingDirection);
+      analogWrite(ENABLE, dutyCycle);
+      Serial.println("opening");
     }
   }
   else if(stateTime == 4 && stateSwitch != 5){
-    motorMotion(closingDirection);
+    setDirection(closingDirection);
+    analogWrite(ENABLE, dutyCycle);
+    Serial.println("closing");
   }
   else{
-    motorMotion(stop);
+    setDirection(stop);
+    Serial.println("stop");
   }
 }
