@@ -443,22 +443,22 @@ void setup(){
   pinMode(INPUT1, OUTPUT);
   pinMode(INPUT2, OUTPUT);
   pinMode(ENABLE, OUTPUT);
-  pinMode(pinSwitch1, INPUT);
-  pinMode(pinSwitch2, INPUT);  
-  pinMode(pinSwitch3, INPUT);  
-  pinMode(pinSwitch4, INPUT);  
-  pinMode(pinSwitch5, INPUT);
+  pinMode(pinSwitch1, INPUT_PULLUP);
+  pinMode(pinSwitch2, INPUT_PULLUP);  
+  pinMode(pinSwitch3, INPUT_PULLUP);  
+  pinMode(pinSwitch4, INPUT_PULLUP);  
+  pinMode(pinSwitch5, INPUT_PULLUP);
 }
 
 void loop(){
   Serial.println("bonjour");  
   myServer.handleClient();
   previousState();
-  stateSwitchArray[0] = digitalRead(pinSwitch1);
-  stateSwitchArray[1] = digitalRead(pinSwitch2);  
-  stateSwitchArray[2] = digitalRead(pinSwitch3);  
-  stateSwitchArray[3] = digitalRead(pinSwitch4);  
-  stateSwitchArray[4] = digitalRead(pinSwitch5);   
+  stateSwitchArray[0] =! digitalRead(pinSwitch1);
+  stateSwitchArray[1] =! digitalRead(pinSwitch2);  
+  stateSwitchArray[2] =! digitalRead(pinSwitch3);  
+  stateSwitchArray[3] =! digitalRead(pinSwitch4);  
+  stateSwitchArray[4] =! digitalRead(pinSwitch5);   
   delay(1000);
   if (WiFi.status() != WL_CONNECTED) { 
     Serial.println("Connexion wifi perdue. Reconnexion...");
@@ -475,59 +475,60 @@ void loop(){
     Serial.print(':');
     Serial.print(integerTime[second]);
     Serial.println();
-    stateTime = stateTimeReturn();
-    Serial.println(stateTime);
-    stateSwitch = stateSwitchReturn();
-    Serial.println(stateSwitch);
-    isActivated = isActivatedReturn();
-    Serial.println(isActivated);
-  if(isActivatedReturn() == 1){
+  }
+  Serial.println(stateTimeReturn());
+  Serial.println(stateSwitchReturn());
+  Serial.println(isActivatedReturn());
+  if(stateSwitchReturn() == 13){
     setDirection(stop);
     Serial.println("stop");
   }
+  else if(isActivatedReturn() == 1){
+  setDirection(stop);
+  Serial.println("stop");
   }
-  if(stateTime == 0 && stateSwitch != 0){
+  else if(stateTimeReturn() == 0 && stateSwitchReturn() != 0){
     setDirection(closingDirection);
     analogWrite(ENABLE, dutyCycle);
     Serial.println("closing");
   }
-  else if(stateTime == 1 && stateSwitch != 2){
-    if(stateSwitch > 2){
+  else if(stateTimeReturn() == 1 && stateSwitchReturn() != 2){
+    if(stateSwitchReturn() > 2){
       setDirection(closingDirection);
       analogWrite(ENABLE, dutyCycle);
       Serial.println("closing");
     }
-    if(stateSwitch < 2){
+    if(stateSwitchReturn() < 2){
       setDirection(openingDirection);
       analogWrite(ENABLE, dutyCycle);
       Serial.println("opening");
     }
   }
-  else if(stateTime == 2 && stateSwitch != 3){
-    if(stateSwitch > 3){
+  else if(stateTimeReturn() == 2 && stateSwitchReturn() != 3){
+    if(stateSwitchReturn() > 3){
       setDirection(closingDirection);
       analogWrite(ENABLE, dutyCycle);
       Serial.println("closing");
     }
-    if(stateSwitch < 3){
+    if(stateSwitchReturn() < 3){
       setDirection(openingDirection);
       analogWrite(ENABLE, dutyCycle);
       Serial.println("opening");
     }
   }
-  else if(stateTime == 3 && stateSwitch != 4){
-    if(stateSwitch > 4){
+  else if(stateTimeReturn() == 3 && stateSwitchReturn() != 4){
+    if(stateSwitchReturn() > 4){
       setDirection(closingDirection);
       analogWrite(ENABLE, dutyCycle);
       Serial.println("closing");
     }
-    if(stateSwitch < 4){
+    if(stateSwitchReturn() < 4){
       setDirection(openingDirection);
       analogWrite(ENABLE, dutyCycle);
       Serial.println("opening");
     }
   }
-  else if(stateTime == 4 && stateSwitch != 5){
+  else if(stateTimeReturn() == 4 && stateSwitchReturn() != 5){
     setDirection(closingDirection);
     analogWrite(ENABLE, dutyCycle);
     Serial.println("closing");
@@ -536,4 +537,3 @@ void loop(){
     setDirection(stop);
     Serial.println("stop");
   }
-}
